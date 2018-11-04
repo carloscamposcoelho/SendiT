@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using SendiT.Model;
 using SendiT.Util;
@@ -16,15 +16,12 @@ namespace SendiT
         public static IActionResult Run(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
             [Queue("email-queue", Connection = "AzureWebJobsStorage")] out OutgoingEmail emailQueue,
-
-            TraceWriter log)
+            ILogger log)
         {
             emailQueue = null;
             try
             {
                 string modelErros;
-
-                log.Info("C# HTTP trigger function processed a request.");
 
                 string requestBody = new StreamReader(req.Body).ReadToEnd();
                 var email = JsonConvert.DeserializeObject<OutgoingEmail>(requestBody);
@@ -42,9 +39,19 @@ namespace SendiT
             }
             catch (System.Exception ex)
             {
-                log.Error("An error has ocurred.", ex);
+                log.LogError("An error has ocurred.", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
+        }
+
+        [FunctionName("SendEmailFromQueue")]
+        public static void QueueTrigger(
+            [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
+            ILogger log)
+        {
+            log.LogInformation($"Triggered an email for send. {JsonConvert.SerializeObject(emailQueue)}");
+
+            
         }
     }
 }
