@@ -4,6 +4,7 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Util;
 using System.IO;
@@ -19,7 +20,9 @@ namespace SendiT
             ILogger log)
         {
             emailQueue = null;
-            try
+			log.LogInformation("New email request.");
+
+			try
             {
                 string modelErros;
 
@@ -28,14 +31,15 @@ namespace SendiT
 
                 if (!ValidatorUtil.IsValid(email, out modelErros))
                 {
-                    return new BadRequestObjectResult(modelErros);
-                }
+					log.LogError($"The request model is invalid. Validation message {modelErros}");
+					return new BadRequestObjectResult(modelErros);
+				}
 
                 //Queue email request
                 emailQueue = email;
 
-                return new OkObjectResult("Request was successfully queued.");
-
+				log.LogInformation("Request queued successfully.");
+				return new OkObjectResult("Request queued successfully.");
             }
             catch (System.Exception ex)
             {
@@ -47,9 +51,25 @@ namespace SendiT
         [FunctionName("SendEmailFromQueue")]
         public static void QueueTrigger(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
-            ILogger log)
+			[SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] out SendGridMessage message,
+			int dequeueCount,
+			ILogger log)
         {
-            log.LogInformation($"Triggered an email for send. {JsonConvert.SerializeObject(emailQueue)}");
+            log.LogInformation($"New email to send. Dequeue count for this message: {dequeueCount}.");
+
+			try {
+				message = new SendGridMessage();
+				message.AddTo(emailQueue.To);
+				message.AddContent("text/html", emailQueue.Body);
+				message.SetFrom(new EmailAddress(emailQueue.From));
+				message.SetSubject(emailQueue.Subject);
+
+				log.LogInformation("Email sent successfully.");
+
+			} catch (System.Exception ex) {
+				log.LogError("An error has ocurred.", ex);
+				throw;
+			}
 
             
         }
