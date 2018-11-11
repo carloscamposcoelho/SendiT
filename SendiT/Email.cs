@@ -8,37 +8,32 @@ using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Util;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace SendiT
 {
     public static class Email
     {
-        [FunctionName("EmailQueue")]
-        public static IActionResult Run(
+        [FunctionName("SendEmail")]
+        public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-            [Queue("email-queue", Connection = "AzureWebJobsStorage")] out OutgoingEmail emailQueue,
+            [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
             ILogger log)
         {
-            emailQueue = null;
-			log.LogInformation("New email request.");
-
 			try
             {
-                string modelErros;
+                var body = await req.GetBodyAsync<OutgoingEmail>();
 
-                string requestBody = new StreamReader(req.Body).ReadToEnd();
-                var email = JsonConvert.DeserializeObject<OutgoingEmail>(requestBody);
-
-                if (!ValidatorUtil.IsValid(email, out modelErros))
+                if (!body.IsValid)
                 {
-					log.LogError($"The request model is invalid. Validation message {modelErros}");
-					return new BadRequestObjectResult(modelErros);
-				}
+                    var errors = JsonConvert.SerializeObject(body.ValidationResults);
+                    log.LogError($"The request model is invalid. Validation message {errors}");
+                    return new BadRequestObjectResult(errors);
+                }
 
                 //Queue email request
-                emailQueue = email;
+                await emailQueue.AddAsync(body.Value);
 
-				log.LogInformation("Request queued successfully.");
 				return new OkObjectResult("Request queued successfully.");
             }
             catch (System.Exception ex)
@@ -48,8 +43,8 @@ namespace SendiT
             }
         }
 
-        [FunctionName("SendEmailFromQueue")]
-        public static void QueueTrigger(
+        [FunctionName("ProcessEmailQueue")]
+        public static void ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
 			[SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] out SendGridMessage message,
 			int dequeueCount,
