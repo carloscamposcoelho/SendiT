@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 namespace SendiT.Util
 {
-
     public class HttpResponseBody<T>
     {
         public bool IsValid { get; set; }

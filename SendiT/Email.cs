@@ -7,7 +7,6 @@ using Newtonsoft.Json;
 using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Util;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace SendiT
@@ -44,13 +43,15 @@ namespace SendiT
         }
 
         [FunctionName("ProcessEmailQueue")]
-        public static void ProcessEmailQueue(
+        public static async Task ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
-			[SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] out SendGridMessage message,
+			[SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
 			int dequeueCount,
 			ILogger log)
         {
             log.LogInformation($"New email to send. Dequeue count for this message: {dequeueCount}.");
+
+            SendGridMessage message = null;
 
 			try {
 				message = new SendGridMessage();
@@ -59,7 +60,7 @@ namespace SendiT
 				message.SetFrom(new EmailAddress(emailQueue.From));
 				message.SetSubject(emailQueue.Subject);
 
-				log.LogInformation("Email sent successfully.");
+                await emails.AddAsync(message);
 
 			} catch (System.Exception ex) {
 				log.LogError("An error has ocurred.", ex);
