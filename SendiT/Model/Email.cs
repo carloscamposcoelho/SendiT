@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace SendiT.Model
 {
@@ -16,5 +17,16 @@ namespace SendiT.Model
         public string Subject { get; set; }
 
         public string Body { get; set; }
+
+        /// <summary>
+        /// Tracker id of the message queued
+        /// </summary>
+        public string Tracker { get; }
+
+        public OutgoingEmail()
+        {
+            Tracker = Guid.NewGuid().ToString();
+        }
+
     }
 }
