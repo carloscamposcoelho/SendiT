@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging;
 using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Util;
-using System.Linq;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
 
@@ -45,23 +44,22 @@ namespace SendiT
         public static async Task ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("email-track", Connection = "AzureWebJobsStorage")] EmailTrack tbEmailTrack,
+            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<EmailTrack> tbEmailTrack,
             int dequeueCount,
             ILogger log)
         {
             log.LogInformation($"New email to send. Dequeue count for this message: {dequeueCount}.");
 
-            tbEmailTrack = null;
             try
             {
                 await SendMessage(emailQueue, emails);
 
-                tbEmailTrack = new EmailTrack
+                tbEmailTrack.Add(new EmailTrack
                 {
                     Email = emailQueue.To,
                     RowKey = emailQueue.Tracker,
                     Event = DeliveryEvents.SendRequested.ToString()
-                };
+                });
 
             }
             catch (System.Exception ex)
@@ -69,8 +67,6 @@ namespace SendiT
                 log.LogError("An error has ocurred.", ex);
                 throw;
             }
-
-
         }
 
         private static async Task SendMessage(OutgoingEmail emailQueue, IAsyncCollector<SendGridMessage> emails)
