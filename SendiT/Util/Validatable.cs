@@ -3,6 +3,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
@@ -23,12 +24,28 @@ namespace SendiT.Util
         {
             var body = new HttpResponseBody<T>();
             var bodyString = await request.ReadAsStringAsync();
-            body.Value = JsonConvert.DeserializeObject<T>(bodyString);
+            ion to rebody.Value = Deserialize<T>(bodyString);
 
             var results = new List<ValidationResult>();
             body.IsValid = Validator.TryValidateObject(body.Value, new ValidationContext(body.Value, null, null), results, true);
             body.ValidationResults = results;
             return body;
         }
+
+        private static T Deserialize<T>(string bodyString)
+        {
+            var token = JToken.Parse(bodyString);
+
+            if (token is JArray)
+            {
+                var values = JsonConvert.DeserializeObject<List<T>>(bodyString);
+                return values[0];
+            }
+            else //token is JObject
+            {
+                return JsonConvert.DeserializeObject<T>(bodyString);
+            }
+        }
     }
+    
 }

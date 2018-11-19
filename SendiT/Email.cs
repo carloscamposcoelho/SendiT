@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using SendGrid.Helpers.Mail;
 using SendiT.Model;
+using SendiT.Model.SendGrid;
 using SendiT.Util;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
@@ -58,7 +60,7 @@ namespace SendiT
                 {
                     Email = emailQueue.To,
                     RowKey = emailQueue.Tracker,
-                    Event = DeliveryEvents.SendRequested.ToString()
+                    Event = DeliveryEvent.SendRequested.ToString()
                 });
 
             }
@@ -68,6 +70,47 @@ namespace SendiT
                 throw;
             }
         }
+
+        [FunctionName("SendGridHook")]
+        public static async Task<IActionResult> SendGridHook(
+         [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
+         [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] ICollector<EmailBlocked> tbEmailBlocked,
+         ILogger log)
+        {
+            try
+            {
+                var body = await req.GetBodyAsync<DeliveryWebHook>();
+
+                if (!body.IsValid)
+                {
+                    return new BadRequestObjectResult(body.ValidationResults);
+                }
+
+                switch (body.Value.Event)
+                {
+                    case DeliveryEvent.Dropped:
+                    case DeliveryEvent.Deferred:
+                    case DeliveryEvent.Bounce:
+                        tbEmailBlocked.Add(new EmailBlocked
+                        {
+                            PartitionKey = body.Value.Email,
+                            RowKey = body.Value.Event.ToString(),
+                            Content = JsonConvert.SerializeObject(body.Value)
+                        });
+                        break;
+                    default:
+                        break;
+                }
+
+                return new OkResult();
+            }
+            catch (System.Exception ex)
+            {
+                log.LogError("An error has ocurred.", ex);
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
+        }
+
 
         private static async Task SendMessage(OutgoingEmail emailQueue, IAsyncCollector<SendGridMessage> emails)
         {
