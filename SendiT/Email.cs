@@ -42,7 +42,7 @@ namespace SendiT
 
         [FunctionName("ProcessEmailQueue")]
         public static async Task ProcessEmailQueue(
-            [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
+            [QueueTrigger("email-queue", Connection = "AzureWebJobsStorage")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
             [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<EmailTrack> tbEmailTrack,
             int dequeueCount,
