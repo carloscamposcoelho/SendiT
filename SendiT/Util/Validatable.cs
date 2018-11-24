@@ -24,7 +24,7 @@ namespace SendiT.Util
         {
             var body = new HttpResponseBody<T>();
             var bodyString = await request.ReadAsStringAsync();
-            ion to rebody.Value = Deserialize<T>(bodyString);
+            body.Value = Deserialize<T>(bodyString);
 
             var results = new List<ValidationResult>();
             body.IsValid = Validator.TryValidateObject(body.Value, new ValidationContext(body.Value, null, null), results, true);
