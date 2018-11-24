@@ -29,4 +29,17 @@ namespace SendiT.Model
         }
 
     }
+
+    public class SendMailResponse
+    {
+        public SendMailResponse(string trackerId)
+        {
+            TrackerId = trackerId;
+        }
+
+        /// <summary>
+        /// Id for track the email sending status
+        /// </summary>
+        public string TrackerId { get; set; }
+    }
 }

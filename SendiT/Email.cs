@@ -33,7 +33,7 @@ namespace SendiT
                 //Queue email request
                 await emailQueue.AddAsync(body.Value);
 
-                return new OkObjectResult($"TrackerId: {body.Value.Tracker}");
+                return new OkObjectResult(new SendMailResponse(body.Value.Tracker));
             }
             catch (System.Exception ex)
             {
