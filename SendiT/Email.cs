@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Model.SendGrid;
 using SendiT.Util;
+using System.Linq;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
 
@@ -47,6 +49,7 @@ namespace SendiT
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
             [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<EmailTrack> tbEmailTrack,
+            [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
             int dequeueCount,
             ILogger log)
         {
@@ -54,6 +57,15 @@ namespace SendiT
 
             try
             {
+                //Check whether the recipient of the message is blocked
+                var recipientIsBlocked = await CheckIfBlocked(emailQueue.To, tbEmailBlocked);
+                if (recipientIsBlocked)
+                {
+                    //TODO: Update SendEmailTrack
+                    log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
+                    return;
+                }
+
                 await SendMessage(emailQueue, emails);
 
                 tbEmailTrack.Add(new EmailTrack
@@ -79,10 +91,12 @@ namespace SendiT
         {
             try
             {
+                log.LogInformation($"Request received: {JsonConvert.SerializeObject(req.Body)}");
                 var body = await req.GetBodyAsync<DeliveryWebHook>();
 
                 if (!body.IsValid)
                 {
+                    log.LogInformation($"Invalid request: {body.ValidationResults}");
                     return new BadRequestObjectResult(body.ValidationResults);
                 }
 
@@ -111,7 +125,6 @@ namespace SendiT
             }
         }
 
-
         private static async Task SendMessage(OutgoingEmail emailQueue, IAsyncCollector<SendGridMessage> emails)
         {
             SendGridMessage message = new SendGridMessage();
@@ -121,6 +134,19 @@ namespace SendiT
             message.SetSubject(emailQueue.Subject);
 
             await emails.AddAsync(message);
+        }
+
+        private static async Task<bool> CheckIfBlocked(string email, CloudTable tbEmailBlocked)
+        {
+            bool isBlocked;
+            TableQuery<EmailBlocked> rangeQuery = new TableQuery<EmailBlocked>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, email));
+
+            // Execute the query 
+            var emails = await tbEmailBlocked.ExecuteQuerySegmentedAsync(rangeQuery, null);
+
+            isBlocked = emails != null && emails.Count() > 0;
+
+            return isBlocked;
         }
     }
 }
