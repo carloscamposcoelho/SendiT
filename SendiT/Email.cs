@@ -9,6 +9,7 @@ using SendGrid.Helpers.Mail;
 using SendiT.Model;
 using SendiT.Model.SendGrid;
 using SendiT.Util;
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
@@ -21,6 +22,7 @@ namespace SendiT
         public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
             [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
+            [Table("SendEmailTrack")] ICollector<SendEmailTrack> tbEmailTrack,
             ILogger log)
         {
             try
@@ -35,11 +37,14 @@ namespace SendiT
                 //Queue email request
                 await emailQueue.AddAsync(body.Value);
 
+                //Track that email request was queued
+                TrackProgress(tbEmailTrack, body.Value.To, body.Value.Tracker, DeliveryEvent.Queued);
+
                 return new OkObjectResult(new SendMailResponse(body.Value.Tracker));
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                log.LogError("An error has ocurred.", ex);
+                log.LogError("An error has occurred.", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
@@ -48,7 +53,7 @@ namespace SendiT
         public static async Task ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<EmailTrack> tbEmailTrack,
+            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<SendEmailTrack> tbEmailTrack,
             [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
             int dequeueCount,
             ILogger log)
@@ -68,17 +73,13 @@ namespace SendiT
 
                 await SendMessage(emailQueue, emails);
 
-                tbEmailTrack.Add(new EmailTrack
-                {
-                    Email = emailQueue.To,
-                    RowKey = emailQueue.Tracker,
-                    Event = DeliveryEvent.SendRequested.ToString()
-                });
+                //Track that email request was queued
+                TrackProgress(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested);
 
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                log.LogError("An error has ocurred.", ex);
+                log.LogError("An error has occurred.", ex);
                 throw;
             }
         }
@@ -112,15 +113,13 @@ namespace SendiT
                             Content = JsonConvert.SerializeObject(body.Value)
                         });
                         break;
-                    default:
-                        break;
                 }
 
                 return new OkResult();
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                log.LogError("An error has ocurred.", ex);
+                log.LogError("An error has occurred.", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
@@ -144,9 +143,20 @@ namespace SendiT
             // Execute the query 
             var emails = await tbEmailBlocked.ExecuteQuerySegmentedAsync(rangeQuery, null);
 
-            isBlocked = emails != null && emails.Count() > 0;
+            isBlocked = emails != null && emails.Any();
 
             return isBlocked;
+        }
+
+        private static void TrackProgress(ICollector<SendEmailTrack> tbTracker, string email, string trackerId, DeliveryEvent dEvent)
+        {
+            tbTracker.Add(new SendEmailTrack
+            {
+                PartitionKey = email,
+                RowKey = trackerId,
+                Event = dEvent.ToString(),
+                Date = DateTime.UtcNow
+            });
         }
     }
 }
