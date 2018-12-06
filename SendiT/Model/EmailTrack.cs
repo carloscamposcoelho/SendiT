@@ -4,7 +4,7 @@ using Microsoft.WindowsAzure.Storage.Table;
 
 namespace SendiT.Model
 {
-    public class SendEmailTrack : TableEntity
+    public class EmailTrack : TableEntity
     {
         /// <summary>
         /// Event that originates the record
