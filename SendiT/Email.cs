@@ -22,7 +22,7 @@ namespace SendiT
         public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
             [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
-            [Table("SendEmailTrack")] ICollector<SendEmailTrack> tbEmailTrack,
+            [Table("SendEmailTrack")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
             ILogger log)
         {
             try
@@ -38,7 +38,7 @@ namespace SendiT
                 await emailQueue.AddAsync(body.Value);
 
                 //Track that email request was queued
-                TrackProgress(tbEmailTrack, body.Value.To, body.Value.Tracker, DeliveryEvent.Queued);
+                await TrackProgress(tbEmailTrack, body.Value.To, body.Value.Tracker, DeliveryEvent.Queued);
 
                 return new OkObjectResult(new SendMailResponse(body.Value.Tracker));
             }
@@ -53,7 +53,7 @@ namespace SendiT
         public static async Task ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] ICollector<SendEmailTrack> tbEmailTrack,
+            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
             [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
             int dequeueCount,
             ILogger log)
@@ -74,7 +74,7 @@ namespace SendiT
                 await SendMessage(emailQueue, emails);
 
                 //Track that email request was queued
-                TrackProgress(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested);
+                await TrackProgress(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested);
 
             }
             catch (Exception ex)
@@ -113,6 +113,28 @@ namespace SendiT
                             Content = JsonConvert.SerializeObject(body.Value)
                         });
                         break;
+                    case DeliveryEvent.Queued:
+                        break;
+                    case DeliveryEvent.SendRequested:
+                        break;
+                    case DeliveryEvent.Processed:
+                        break;
+                    case DeliveryEvent.Delivered:
+                        break;
+                    case DeliveryEvent.Open:
+                        break;
+                    case DeliveryEvent.Click:
+                        break;
+                    case DeliveryEvent.SpamReport:
+                        break;
+                    case DeliveryEvent.Unsubscribe:
+                        break;
+                    case DeliveryEvent.GroupUnsubscribe:
+                        break;
+                    case DeliveryEvent.GroupResubscribe:
+                        break;
+                    default:
+                        break;
                 }
 
                 return new OkResult();
@@ -138,7 +160,7 @@ namespace SendiT
         private static async Task<bool> CheckIfBlocked(string email, CloudTable tbEmailBlocked)
         {
             bool isBlocked;
-            TableQuery<EmailBlocked> rangeQuery = new TableQuery<EmailBlocked>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, email));
+            var rangeQuery = new TableQuery<EmailBlocked>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, email));
 
             // Execute the query 
             var emails = await tbEmailBlocked.ExecuteQuerySegmentedAsync(rangeQuery, null);
@@ -148,9 +170,9 @@ namespace SendiT
             return isBlocked;
         }
 
-        private static void TrackProgress(ICollector<SendEmailTrack> tbTracker, string email, string trackerId, DeliveryEvent dEvent)
+        private static async Task TrackProgress(IAsyncCollector<SendEmailTrack> tbTracker, string email, string trackerId, DeliveryEvent dEvent)
         {
-            tbTracker.Add(new SendEmailTrack
+            await tbTracker.AddAsync(new SendEmailTrack
             {
                 PartitionKey = email,
                 RowKey = trackerId,
