@@ -24,7 +24,7 @@ namespace SendiT
         public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Admin, "post", Route = null)] HttpRequest req,
             [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
-            [Table("SendEmailTrack")] IAsyncCollector<EmailTrack> tbEmailTrack,
+            [Table("SendEmailTrack")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
             ILogger log)
         {
             try
@@ -121,7 +121,7 @@ namespace SendiT
         public static async Task ProcessEmailQueue(
             [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] CloudTable tbEmailTrack,
+            [Table("SendEmailTrack", Connection = "AzureWebJobsStorage")] CloudTable tbEmailTrack,
             [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
             int dequeueCount,
             ILogger log)
@@ -141,7 +141,7 @@ namespace SendiT
                 await SendMessage(emailQueue, emails);
 
                 //Track that email request was queued
-                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested);
+                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested, log);
 
             }
             catch (Exception ex)

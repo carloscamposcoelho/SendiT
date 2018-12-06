@@ -21,11 +21,14 @@ namespace SendiT.Model
         /// <summary>
         /// Tracker id of the message queued
         /// </summary>
-        public string Tracker { get; }
+        public string Tracker { get; set; }
 
         public OutgoingEmail()
         {
-            Tracker = Guid.NewGuid().ToString();
+            if (string.IsNullOrEmpty(Tracker))
+            {
+                Tracker = Guid.NewGuid().ToString();
+            }
         }
 
     }
