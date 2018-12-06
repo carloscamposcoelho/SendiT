@@ -18,6 +18,8 @@ namespace SendiT
 {
     public static class Email
     {
+        #region Http Triggers
+
         [FunctionName("SendEmail")]
         public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
@@ -38,7 +40,7 @@ namespace SendiT
                 await emailQueue.AddAsync(body.Value);
 
                 //Track that email request was queued
-                await TrackProgress(tbEmailTrack, body.Value.To, body.Value.Tracker, DeliveryEvent.Queued);
+                await TrackProgress(tbEmailTrack, body.Value, DeliveryEvent.Queued);
 
                 return new OkObjectResult(new SendMailResponse(body.Value.Tracker));
             }
@@ -46,41 +48,6 @@ namespace SendiT
             {
                 log.LogError("An error has occurred.", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-            }
-        }
-
-        [FunctionName("ProcessEmailQueue")]
-        public static async Task ProcessEmailQueue(
-            [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
-            [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
-            [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
-            int dequeueCount,
-            ILogger log)
-        {
-            log.LogInformation($"New email to send. Dequeue count for this message: {dequeueCount}.");
-
-            try
-            {
-                //Check whether the recipient of the message is blocked
-                var recipientIsBlocked = await CheckIfBlocked(emailQueue.To, tbEmailBlocked);
-                if (recipientIsBlocked)
-                {
-                    //TODO: Update SendEmailTrack
-                    log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
-                    return;
-                }
-
-                await SendMessage(emailQueue, emails);
-
-                //Track that email request was queued
-                await TrackProgress(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested);
-
-            }
-            catch (Exception ex)
-            {
-                log.LogError("An error has occurred.", ex);
-                throw;
             }
         }
 
@@ -146,6 +113,46 @@ namespace SendiT
             }
         }
 
+        #endregion
+
+        #region Queue Triggers
+
+        [FunctionName("ProcessEmailQueue")]
+        public static async Task ProcessEmailQueue(
+            [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
+            [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
+            [Table("EmailTrack", Connection = "AzureWebJobsStorage")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
+            [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
+            int dequeueCount,
+            ILogger log)
+        {
+            log.LogInformation($"New email to send. Dequeue count for this message: {dequeueCount}.");
+
+            try
+            {
+                //Check whether the recipient of the message is blocked
+                var recipientIsBlocked = await CheckIfBlocked(emailQueue.To, tbEmailBlocked);
+                if (recipientIsBlocked)
+                {
+                    log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
+                    return;
+                }
+
+                await SendMessage(emailQueue, emails);
+
+                //Track that email request was queued
+                await TrackProgress(tbEmailTrack, emailQueue, DeliveryEvent.SendRequested);
+
+            }
+            catch (Exception ex)
+            {
+                log.LogError("An error has occurred.", ex);
+                throw;
+            }
+        }
+
+        #endregion
+
         private static async Task SendMessage(OutgoingEmail emailQueue, IAsyncCollector<SendGridMessage> emails)
         {
             SendGridMessage message = new SendGridMessage();
@@ -170,14 +177,15 @@ namespace SendiT
             return isBlocked;
         }
 
-        private static async Task TrackProgress(IAsyncCollector<SendEmailTrack> tbTracker, string email, string trackerId, DeliveryEvent dEvent)
+        private static async Task TrackProgress(IAsyncCollector<SendEmailTrack> tbTracker, OutgoingEmail emailMessage, DeliveryEvent dEvent)
         {
             await tbTracker.AddAsync(new SendEmailTrack
             {
-                PartitionKey = email,
-                RowKey = trackerId,
+                PartitionKey = emailMessage.To,
+                RowKey = emailMessage.Tracker,
                 Event = dEvent.ToString(),
-                Date = DateTime.UtcNow
+                Date = DateTime.UtcNow,
+                Message = emailMessage
             });
         }
     }
