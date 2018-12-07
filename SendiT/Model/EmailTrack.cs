@@ -1,27 +1,24 @@
 ﻿using System;
+using System.Data.Common;
 using Microsoft.WindowsAzure.Storage.Table;
 
 namespace SendiT.Model
 {
-    public class EmailTrack : TableEntity
+    public class SendEmailTrack : TableEntity
     {
-        string _email;
-
-        public string Email {
-            get => _email;
-            set {
-                _email = PartitionKey = value;
-            }
-        }
-
         /// <summary>
         /// Event that originates the record
         /// </summary>
         public string Event { get; set; }
 
         /// <summary>
-        /// Addcional information about the event
+        /// Date time of the latest event
         /// </summary>
-        public string Reason { get; set; }
+        public DateTime Date { get; set; }
+
+        /// <summary>
+        /// Email message content
+        /// </summary>
+        public string Content { get; set; }
     }
 }
