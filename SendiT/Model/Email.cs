@@ -19,18 +19,27 @@ namespace SendiT.Model
         public string Body { get; set; }
 
         /// <summary>
+        /// Caller's application name
+        /// </summary>
+        public string Origin { get; set; }
+
+        /// <summary>
+        /// Type of the message
+        /// </summary>
+        public string Type { get; set; }
+
+        /// <summary>
         /// Tracker id of the message queued
         /// </summary>
-        public string Tracker { get; set; }
+        public string TrackerId { get; set; }
 
         public OutgoingEmail()
         {
-            if (string.IsNullOrEmpty(Tracker))
+            if (string.IsNullOrEmpty(TrackerId))
             {
-                Tracker = Guid.NewGuid().ToString();
+                TrackerId = Guid.NewGuid().ToString();
             }
         }
-
     }
 
     public class SendMailResponse

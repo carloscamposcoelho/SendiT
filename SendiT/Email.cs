@@ -33,16 +33,19 @@ namespace SendiT
 
                 if (!body.IsValid)
                 {
+                    log.LogInformation($"Invalid model: {JsonConvert.SerializeObject(body.ValidationResults)}");
                     return new BadRequestObjectResult(body.ValidationResults);
                 }
+
+                log.LogInformation($"Request received from {body.Value.Origin}, message type {body.Value.Type}.");
 
                 //Queue email request
                 await emailQueue.AddAsync(body.Value);
 
                 //Track that email request was queued
-                await EmailTracker.Create(tbEmailTrack, body.Value, DeliveryEvent.Queued);
+               await EmailTracker.Create(tbEmailTrack, body.Value, DeliveryEvent.Queued);
 
-                return new OkObjectResult(new SendMailResponse(body.Value.Tracker));
+                return new OkObjectResult(new SendMailResponse(body.Value.TrackerId));
             }
             catch (Exception ex)
             {
@@ -141,7 +144,7 @@ namespace SendiT
                 await SendMessage(emailQueue, emails);
 
                 //Track that email request was queued
-                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.Tracker, DeliveryEvent.SendRequested, log);
+                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log);
 
             }
             catch (Exception ex)

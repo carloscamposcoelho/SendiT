@@ -17,7 +17,7 @@ namespace SendiT.Logic
             await tbTracker.AddAsync(new SendEmailTrack
             {
                 PartitionKey = emailMessage.To,
-                RowKey = emailMessage.Tracker,
+                RowKey = emailMessage.TrackerId,
                 Event = dEvent.ToString(),
                 Content = content,
                 Date = DateTime.UtcNow
