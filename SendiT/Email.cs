@@ -22,7 +22,7 @@ namespace SendiT
 
         [FunctionName("SendEmail")]
         public static async Task<IActionResult> SendEmail(
-            [HttpTrigger(AuthorizationLevel.Admin, "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
             [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
             [Table("SendEmailTrack")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
             ILogger log)
