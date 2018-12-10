@@ -37,6 +37,22 @@ I recommend that you get the [Storage Explorer](https://azure.microsoft.com/en-u
 
 ### Send Email
 
-The send email function is responsible for get a request of an email data, store it into a queue and send it later using a Send Grid account.
+The send email function is responsible for get a request of an email data, store it into a queue to be sent through a Send Grid account.
 
----
+Request Json
+```json
+{
+    "From": "no-reply@mydomain.com",
+    "To": "someone@email.com",
+    "Subject": "Testing sendit",
+    "Body": "This is just a test",
+    "Origin": "TEST APP", //Caller's application name
+    "Type": "Test Message" //Type of the message
+}
+```
+Response Json
+```json
+{
+    "trackerId": "11111111-2222-3333-4444-555555555555"
+}
+```
