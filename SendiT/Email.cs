@@ -13,6 +13,8 @@ using System;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
 using SendiT.Logic;
+using System.Collections.Generic;
+using System.IO;
 
 namespace SendiT
 {
@@ -57,58 +59,18 @@ namespace SendiT
         [FunctionName("SendGridHook")]
         public static async Task<IActionResult> SendGridHook(
          [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-         [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] IAsyncCollector<EmailBlocked> tbEmailBlocked,
-         [Table("SendEmailTrack")] CloudTable tbEmailTrack,
+         [Queue("DeliveryStatusQueue")]  IAsyncCollector<string> deliveryStatusQueue,
          ILogger log)
         {
             try
             {
-                log.LogInformation($"Request received: {JsonConvert.SerializeObject(req.Body)}");
-                var body = await req.GetBodyAsync<DeliveryWebHook>();
+                log.LogInformation("New web hook received from SendGrid");
+                string requestBody = new StreamReader(req.Body).ReadToEnd();
 
-                if (!body.IsValid)
-                {
-                    log.LogInformation($"Invalid request: {body.ValidationResults}");
-                    return new BadRequestObjectResult(body.ValidationResults);
-                }
-
-                //TODO: Create a queue based on the DeliveryEvent
-                switch (body.Value.Event)
-                {
-                    case DeliveryEvent.Dropped:
-                    case DeliveryEvent.Deferred:
-                    case DeliveryEvent.Bounce:
-                        //TODO: put DeliveryWebHook as property of EmailBlocked instead of serialize the Json
-                        await EmailBlocker.Create(tbEmailBlocked, body.Value.Email, JsonConvert.SerializeObject(body.Value), body.Value.Event);
-                        
-                        //TODO: Fist I need to store the trackerId into some custom field of SendGrid
-                        //track that email has been blocked
-                        //await EmailTracker.Update(tbEmailTrack, body.Value.Email, emailQueue.Tracker, DeliveryEvent.SendRequested);
-                        break;
-                    case DeliveryEvent.Queued:
-                        break;
-                    case DeliveryEvent.SendRequested:
-                        break;
-                    case DeliveryEvent.Processed:
-                        break;
-                    case DeliveryEvent.Delivered:
-                        break;
-                    case DeliveryEvent.Open:
-                        break;
-                    case DeliveryEvent.Click:
-                        break;
-                    case DeliveryEvent.SpamReport:
-                        break;
-                    case DeliveryEvent.Unsubscribe:
-                        break;
-                    case DeliveryEvent.GroupUnsubscribe:
-                        break;
-                    case DeliveryEvent.GroupResubscribe:
-                        break;
-                }
+                await deliveryStatusQueue.AddAsync(requestBody);
 
                 return new OkResult();
-            }
+            }   
             catch (Exception ex)
             {
                 log.LogError("An error has occurred.", ex);
@@ -138,6 +100,7 @@ namespace SendiT
                 if (recipientIsBlocked)
                 {
                     log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
+                    await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.Blocked, log);
                     return;
                 }
 
@@ -146,6 +109,63 @@ namespace SendiT
                 //Track that email request was queued
                 await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log);
 
+            }
+            catch (Exception ex)
+            {
+                log.LogError("An error has occurred.", ex);
+                throw;
+            }
+        }
+
+        [FunctionName("ProcessDeliveryStatusQueue")]
+        public static async Task ProcessDeliveryStatusQueue(
+            [QueueTrigger("DeliveryStatusQueue")] string deliveryStatusQueue,
+            [Table("EmailBlocked")] IAsyncCollector<EmailBlocked> tbEmailBlocked,
+            [Table("SendEmailTrack")] CloudTable tbEmailTrack,
+            int dequeueCount,
+            ILogger log)
+        {
+            try
+            {
+                log.LogInformation($"New status to update. Dequeue count for this item: {dequeueCount}.");
+                var deliveryStatusList = JsonConvert.DeserializeObject<List<DeliveryWebHook>>(deliveryStatusQueue);
+
+                foreach (var deliveryStatus in deliveryStatusList)
+                {
+                    switch (deliveryStatus.Event)
+                    {
+                        case DeliveryEvent.Dropped:
+                        case DeliveryEvent.Deferred:
+                        case DeliveryEvent.Bounce:
+                            //TODO: put DeliveryWebHook as property of EmailBlocked instead of serialize the Json
+                            await EmailBlocker.Create(tbEmailBlocked, deliveryStatus.Email, JsonConvert.SerializeObject(deliveryStatus), deliveryStatus.Event);
+
+                            //TODO: Fist I need to store the trackerId into some custom field of SendGrid
+                            //track that email has been blocked
+                            //await EmailTracker.Update(tbEmailTrack, body.Value.Email, emailQueue.Tracker, DeliveryEvent.SendRequested);
+                            break;
+                        case DeliveryEvent.Queued:
+                            break;
+                        case DeliveryEvent.SendRequested:
+                            break;
+                        case DeliveryEvent.Processed:
+                            break;
+                        case DeliveryEvent.Delivered:
+                            break;
+                        case DeliveryEvent.Open:
+                            break;
+                        case DeliveryEvent.Click:
+                            break;
+                        case DeliveryEvent.SpamReport:
+                            break;
+                        case DeliveryEvent.Unsubscribe:
+                            break;
+                        case DeliveryEvent.GroupUnsubscribe:
+                            break;
+                        case DeliveryEvent.GroupResubscribe:
+                            break;
+                    }
+                }
             }
             catch (Exception ex)
             {

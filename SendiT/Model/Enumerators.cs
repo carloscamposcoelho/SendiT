@@ -52,6 +52,10 @@ namespace SendiT.Model
 
             [EnumMember(Value = "group_resubscribe")]
             GroupResubscribe = 13,
+
+            [EnumMember(Value = "blocked")]
+            [Description("The email is blocked")]
+            Blocked = 14,
         }
     }
 }
