@@ -32,14 +32,6 @@ namespace SendiT.Model
         /// Tracker id of the message queued
         /// </summary>
         public string TrackerId { get; set; }
-
-        public OutgoingEmail()
-        {
-            if (string.IsNullOrEmpty(TrackerId))
-            {
-                TrackerId = Guid.NewGuid().ToString();
-            }
-        }
     }
 
     public class SendMailResponse

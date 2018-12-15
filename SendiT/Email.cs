@@ -20,13 +20,18 @@ namespace SendiT
 {
     public static class Email
     {
+        private const string EMAIL_QUEUE = "EmailQueue";
+        private const string EMAIL_TRACK = "EmailTrack";
+        private const string DELIVERY_STATUS_QUEUE = "DeliveryStatusQueue";
+        private const string EMAIL_BLOCKED = "EmailBlocked";
+
         #region Http Triggers
 
         [FunctionName("SendEmail")]
         public static async Task<IActionResult> SendEmail(
             [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-            [Queue("email-queue", Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
-            [Table("SendEmailTrack")] IAsyncCollector<SendEmailTrack> tbEmailTrack,
+            [Queue(EMAIL_QUEUE, Connection = "AzureWebJobsStorage")]  IAsyncCollector<OutgoingEmail> emailQueue,
+            [Table(EMAIL_TRACK)] IAsyncCollector<SendEmailTrack> tbEmailTrack,
             ILogger log)
         {
             try
@@ -41,6 +46,8 @@ namespace SendiT
 
                 log.LogInformation($"Request received from {body.Value.Origin}, message type {body.Value.Type}.");
 
+                //Setting the tracker id for this message.
+                body.Value.TrackerId = Guid.NewGuid().ToString();
                 //Queue email request
                 await emailQueue.AddAsync(body.Value);
 
@@ -59,7 +66,7 @@ namespace SendiT
         [FunctionName("SendGridHook")]
         public static async Task<IActionResult> SendGridHook(
          [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-         [Queue("DeliveryStatusQueue")]  IAsyncCollector<string> deliveryStatusQueue,
+         [Queue(DELIVERY_STATUS_QUEUE)]  IAsyncCollector<string> deliveryStatusQueue,
          ILogger log)
         {
             try
@@ -84,10 +91,10 @@ namespace SendiT
 
         [FunctionName("ProcessEmailQueue")]
         public static async Task ProcessEmailQueue(
-            [QueueTrigger("email-queue")] OutgoingEmail emailQueue,
+            [QueueTrigger(EMAIL_QUEUE)] OutgoingEmail emailQueue,
             [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
-            [Table("SendEmailTrack", Connection = "AzureWebJobsStorage")] CloudTable tbEmailTrack,
-            [Table("EmailBlocked", Connection = "AzureWebJobsStorage")] CloudTable tbEmailBlocked,
+            [Table(EMAIL_TRACK)] CloudTable tbEmailTrack,
+            [Table(EMAIL_BLOCKED)] CloudTable tbEmailBlocked,
             int dequeueCount,
             ILogger log)
         {
@@ -108,7 +115,6 @@ namespace SendiT
 
                 //Track that email request was queued
                 await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log);
-
             }
             catch (Exception ex)
             {
@@ -119,9 +125,9 @@ namespace SendiT
 
         [FunctionName("ProcessDeliveryStatusQueue")]
         public static async Task ProcessDeliveryStatusQueue(
-            [QueueTrigger("DeliveryStatusQueue")] string deliveryStatusQueue,
-            [Table("EmailBlocked")] IAsyncCollector<EmailBlocked> tbEmailBlocked,
-            [Table("SendEmailTrack")] CloudTable tbEmailTrack,
+            [QueueTrigger(DELIVERY_STATUS_QUEUE)] string deliveryStatusQueue,
+            [Table(EMAIL_BLOCKED)] IAsyncCollector<EmailBlocked> tbEmailBlocked,
+            [Table(EMAIL_TRACK)] CloudTable tbEmailTrack,
             int dequeueCount,
             ILogger log)
         {
