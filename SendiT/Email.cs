@@ -58,7 +58,7 @@ namespace SendiT
                 await emailQueue.AddAsync(body.Value);
 
                 //Track that email request was queued
-                await EmailTracker.Create(tbEmailTrack, body.Value, DeliveryEvent.Queued);
+                await EmailTracker.Create(tbEmailTrack, body.Value, Event.Queued);
 
                 return new OkObjectResult(new SendMailResponse(body.Value.TrackerId));
             }
@@ -112,7 +112,7 @@ namespace SendiT
                 if (recipientIsBlocked)
                 {
                     log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
-                    await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.Blocked, log);
+                    await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, Event.Blocked, log);
                     return;
                 }
 
@@ -124,7 +124,7 @@ namespace SendiT
                     throw new Exception($"Error sending mail. SendGrid response {response.StatusCode}");
                 }
                 //Track that email request was sent
-                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log,
+                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, Event.SendRequested, log,
                     response.MessageId);
             }
             catch (Exception ex)
@@ -147,40 +147,26 @@ namespace SendiT
                 log.LogInformation($"New status to update. Dequeue count for this item: {dequeueCount}.");
                 var deliveryStatusList = JsonConvert.DeserializeObject<List<DeliveryWebHook>>(deliveryStatusQueue);
 
-                foreach (var deliveryStatus in deliveryStatusList)
+                foreach (var status in deliveryStatusList)
                 {
-                    switch (deliveryStatus.Event)
+                    if (DeliveryEvents.Contains(status.Event))
                     {
-                        case DeliveryEvent.Dropped:
-                        case DeliveryEvent.Deferred:
-                        case DeliveryEvent.Bounce:
-                            //TODO: put DeliveryWebHook as property of EmailBlocked instead of serialize the Json
-                            await EmailBlocker.Create(tbEmailBlocked, deliveryStatus.Email, JsonConvert.SerializeObject(deliveryStatus), deliveryStatus.Event);
-
-                            //TODO: Fist I need to store the trackerId into some custom field of SendGrid
-                            //track that email has been blocked
-                            //await EmailTracker.Update(tbEmailTrack, body.Value.Email, emailQueue.Tracker, DeliveryEvent.SendRequested);
-                            break;
-                        case DeliveryEvent.Queued:
-                            break;
-                        case DeliveryEvent.SendRequested:
-                            break;
-                        case DeliveryEvent.Processed:
-                            break;
-                        case DeliveryEvent.Delivered:
-                            break;
-                        case DeliveryEvent.Open:
-                            break;
-                        case DeliveryEvent.Click:
-                            break;
-                        case DeliveryEvent.SpamReport:
-                            break;
-                        case DeliveryEvent.Unsubscribe:
-                            break;
-                        case DeliveryEvent.GroupUnsubscribe:
-                            break;
-                        case DeliveryEvent.GroupResubscribe:
-                            break;
+                        if (BlockerEvents.Contains(status.Event))
+                        {
+                            log.LogInformation($"Blocking email {status.Email}...");
+                            await EmailBlocker.Create(tbEmailBlocked, status.Email, JsonConvert.SerializeObject(status), status.Event);
+                        }
+                        //TODO: Add to a list of Delivery Events
+                        await EmailTracker.Update(tbEmailTrack, status.Email, "trackerId?", status.Event, log, status.SgMessageId);
+                    }
+                    else if (EngagementEvents.Contains(status.Event))
+                    {
+                        //TODO: Add to a list of Engagement Events
+                        await EmailTracker.Update(tbEmailTrack, status.Email, "trackerId?", status.Event, log, status.SgMessageId);
+                    }
+                    else
+                    {
+                        throw new Exception($"Event not mapped {status.Event}.");
                     }
                 }
             }

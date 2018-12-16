@@ -11,7 +11,7 @@ namespace SendiT.Logic
 {
     public static class EmailTracker
     {
-        public static async Task Create(IAsyncCollector<SendEmailTrack> tbTracker, OutgoingEmail emailMessage, DeliveryEvent dEvent,
+        public static async Task Create(IAsyncCollector<SendEmailTrack> tbTracker, OutgoingEmail emailMessage, Event dEvent,
             string messageId = null)
         {
             var content = JsonConvert.SerializeObject(emailMessage);
@@ -26,7 +26,7 @@ namespace SendiT.Logic
             });
         }
 
-        public static async Task Update(CloudTable tbTracker, string email, string trackerId, DeliveryEvent dEvent, ILogger log,
+        public static async Task Update(CloudTable tbTracker, string email, string trackerId, Event dEvent, ILogger log,
             string messageId = null)
         {
             //retrieving the table

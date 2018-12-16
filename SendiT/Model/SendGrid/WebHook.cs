@@ -14,7 +14,7 @@ namespace SendiT.Model.SendGrid
         public string SmtpId { get; set; }
 
         [JsonConverter(typeof(StringEnumConverter))]
-        public DeliveryEvent Event { get; set; }
+        public Event Event { get; set; }
         
         [JsonProperty("sg_event_id")]
         public string SgEventId { get; set; }
