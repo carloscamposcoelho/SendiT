@@ -15,12 +15,14 @@ namespace SendiT.Model.SendGrid
 
         [JsonConverter(typeof(StringEnumConverter))]
         public Event Event { get; set; }
-        
+
         [JsonProperty("sg_event_id")]
         public string SgEventId { get; set; }
 
         [JsonProperty("sg_message_id")]
         public string SgMessageId { get; set; }
+
+        public string TrackerId { get; set; }
 
         public string Reason { get; set; }
 

@@ -144,6 +144,9 @@ namespace SendiT
         {
             try
             {
+                //TODO: Need to work the TimeStemp property
+                //https://stackoverflow.com/questions/249760/how-can-i-convert-a-unix-timestamp-to-datetime-and-vice-versa/250400#250400
+
                 log.LogInformation($"New status to update. Dequeue count for this item: {dequeueCount}.");
                 var deliveryStatusList = JsonConvert.DeserializeObject<List<DeliveryWebHook>>(deliveryStatusQueue);
 
@@ -157,12 +160,12 @@ namespace SendiT
                             await EmailBlocker.Create(tbEmailBlocked, status.Email, JsonConvert.SerializeObject(status), status.Event);
                         }
                         //TODO: Add to a list of Delivery Events
-                        await EmailTracker.Update(tbEmailTrack, status.Email, "trackerId?", status.Event, log, status.SgMessageId);
+                        await EmailTracker.Update(tbEmailTrack, status.Email, status.TrackerId, status.Event, log, status.SgMessageId);
                     }
                     else if (EngagementEvents.Contains(status.Event))
                     {
                         //TODO: Add to a list of Engagement Events
-                        await EmailTracker.Update(tbEmailTrack, status.Email, "trackerId?", status.Event, log, status.SgMessageId);
+                        await EmailTracker.Update(tbEmailTrack, status.Email, status.TrackerId, status.Event, log, status.SgMessageId);
                     }
                     else
                     {
