@@ -5,16 +5,17 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
-using SendGrid.Helpers.Mail;
+using SendiT.Logic;
 using SendiT.Model;
 using SendiT.Model.SendGrid;
 using SendiT.Util;
 using System;
-using System.Threading.Tasks;
-using static SendiT.Model.Enumerators;
-using SendiT.Logic;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
+using static SendiT.Model.Enumerators;
 
 namespace SendiT
 {
@@ -24,6 +25,11 @@ namespace SendiT
         private const string EMAIL_TRACK = "EmailTrack";
         private const string DELIVERY_STATUS_QUEUE = "DeliveryStatusQueue";
         private const string EMAIL_BLOCKED = "EmailBlocked";
+        private static readonly IEnumerable<HttpStatusCode> _successStatusCodes = new List<HttpStatusCode>
+        {
+            HttpStatusCode.Accepted,
+            HttpStatusCode.OK
+        };
 
         #region Http Triggers
 
@@ -52,7 +58,7 @@ namespace SendiT
                 await emailQueue.AddAsync(body.Value);
 
                 //Track that email request was queued
-               await EmailTracker.Create(tbEmailTrack, body.Value, DeliveryEvent.Queued);
+                await EmailTracker.Create(tbEmailTrack, body.Value, DeliveryEvent.Queued);
 
                 return new OkObjectResult(new SendMailResponse(body.Value.TrackerId));
             }
@@ -77,7 +83,7 @@ namespace SendiT
                 await deliveryStatusQueue.AddAsync(requestBody);
 
                 return new OkResult();
-            }   
+            }
             catch (Exception ex)
             {
                 log.LogError("An error has occurred.", ex);
@@ -92,7 +98,6 @@ namespace SendiT
         [FunctionName("ProcessEmailQueue")]
         public static async Task ProcessEmailQueue(
             [QueueTrigger(EMAIL_QUEUE)] OutgoingEmail emailQueue,
-            [SendGrid(ApiKey = "AzureWebJobsSendGridApiKey")] IAsyncCollector<SendGridMessage> emails,
             [Table(EMAIL_TRACK)] CloudTable tbEmailTrack,
             [Table(EMAIL_BLOCKED)] CloudTable tbEmailBlocked,
             int dequeueCount,
@@ -111,10 +116,16 @@ namespace SendiT
                     return;
                 }
 
-                await SendMessage(emailQueue, emails);
+                var response = await SendMail.SendSingleEmail(emailQueue.From, emailQueue.To, emailQueue.Subject, emailQueue.Body,
+                    emailQueue.TrackerId, log);
 
-                //Track that email request was queued
-                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log);
+                if (!_successStatusCodes.Contains(response.StatusCode))
+                {
+                    throw new Exception($"Error sending mail. SendGrid response {response.StatusCode}");
+                }
+                //Track that email request was sent
+                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, DeliveryEvent.SendRequested, log,
+                    response.MessageId);
             }
             catch (Exception ex)
             {
@@ -181,17 +192,5 @@ namespace SendiT
         }
 
         #endregion
-
-        private static async Task SendMessage(OutgoingEmail emailQueue, IAsyncCollector<SendGridMessage> emails)
-        {
-            SendGridMessage message = new SendGridMessage();
-            message.AddTo(emailQueue.To);
-            message.AddContent("text/html", emailQueue.Body);
-            message.SetFrom(new EmailAddress(emailQueue.From));
-            message.SetSubject(emailQueue.Subject);
-
-            await emails.AddAsync(message);
-        }
-
     }
 }

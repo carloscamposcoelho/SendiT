@@ -1,6 +1,5 @@
-﻿using System;
-using System.Data.Common;
-using Microsoft.WindowsAzure.Storage.Table;
+﻿using Microsoft.WindowsAzure.Storage.Table;
+using System;
 
 namespace SendiT.Model
 {
@@ -20,5 +19,11 @@ namespace SendiT.Model
         /// Email message content
         /// </summary>
         public string Content { get; set; }
+
+        /// <summary>
+        /// SendGrid message id
+        /// </summary>
+        public string MessageId { get; set; }
+
     }
 }

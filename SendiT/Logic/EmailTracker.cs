@@ -11,7 +11,8 @@ namespace SendiT.Logic
 {
     public static class EmailTracker
     {
-        public static async Task Create(IAsyncCollector<SendEmailTrack> tbTracker, OutgoingEmail emailMessage, DeliveryEvent dEvent)
+        public static async Task Create(IAsyncCollector<SendEmailTrack> tbTracker, OutgoingEmail emailMessage, DeliveryEvent dEvent,
+            string messageId = null)
         {
             var content = JsonConvert.SerializeObject(emailMessage);
             await tbTracker.AddAsync(new SendEmailTrack
@@ -20,12 +21,13 @@ namespace SendiT.Logic
                 RowKey = emailMessage.TrackerId,
                 Event = dEvent.ToString(),
                 Content = content,
-                Date = DateTime.UtcNow
-                
+                Date = DateTime.UtcNow,
+                MessageId = messageId
             });
         }
 
-        public static async Task Update(CloudTable tbTracker, string email, string trackerId, DeliveryEvent dEvent, ILogger log)
+        public static async Task Update(CloudTable tbTracker, string email, string trackerId, DeliveryEvent dEvent, ILogger log,
+            string messageId = null)
         {
             //retrieving the table
             TableResult retrievedResult = await tbTracker.ExecuteAsync(TableOperation.Retrieve<SendEmailTrack>(email, trackerId));
@@ -35,13 +37,14 @@ namespace SendiT.Logic
                 //update table
                 emailTrack.Event = dEvent.ToString();
                 emailTrack.Date = DateTime.UtcNow;
+                emailTrack.MessageId = messageId ?? emailTrack.MessageId;
 
                 var operation = TableOperation.Replace(emailTrack);
                 await tbTracker.ExecuteAsync(operation);
             }
             else
             {
-                log.LogError($"Email track could not be found. Email {email}; TrackerId: {trackerId}");
+                log.LogError($"Email track could not be found. PartitionKey {email}; RowKey: {trackerId}");
             }
         }
     }
