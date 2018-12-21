@@ -9,7 +9,7 @@ namespace SendiT.Logic
 {
     public static class EmailBlocker
     {
-        public static async Task Create(IAsyncCollector<EmailBlocked> tbEmailBlocked, string email, string content, DeliveryEvent dEvent)
+        public static async Task Create(IAsyncCollector<EmailBlocked> tbEmailBlocked, string email, string content, Event dEvent)
         {
             await tbEmailBlocked.AddAsync(new EmailBlocked
             {

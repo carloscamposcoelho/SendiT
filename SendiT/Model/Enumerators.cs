@@ -1,11 +1,12 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System.ComponentModel;
 using System.Runtime.Serialization;
 
 namespace SendiT.Model
 {
     public class Enumerators
     {
-        public enum DeliveryEvent
+        public enum Event
         {
             [EnumMember(Value = "RequestQueued")]
             [Description("Message has been queued and will be send in a while.")]
@@ -34,7 +35,7 @@ namespace SendiT.Model
             [EnumMember(Value = "bounce")]
             [Description("Receiving server could not or would not accept the message.")]
             Bounce = 7,
-            
+
             [EnumMember(Value = "open")]
             Open = 8,
 
@@ -52,6 +53,38 @@ namespace SendiT.Model
 
             [EnumMember(Value = "group_resubscribe")]
             GroupResubscribe = 13,
+
+            [EnumMember(Value = "blocked")]
+            [Description("The email is blocked")]
+            Blocked = 14,
         }
+
+        public static readonly IEnumerable<Event> DeliveryEvents = new List<Event>
+        {
+            Event.Dropped,
+            Event.Deferred,
+            Event.Bounce,
+            Event.Queued,
+            Event.SendRequested,
+            Event.Processed,
+            Event.Delivered
+        };
+
+        public static readonly IEnumerable<Event> EngagementEvents = new List<Event>
+        {
+            Event.Open,
+            Event.Click,
+            Event.SpamReport,
+            Event.Unsubscribe,
+            Event.GroupUnsubscribe,
+            Event.GroupResubscribe
+        };
+
+        public static readonly IEnumerable<Event> BlockerEvents = new List<Event>
+        {
+            Event.Dropped,
+            Event.Deferred,
+            Event.Bounce
+        };
     }
 }
