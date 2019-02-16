@@ -62,9 +62,14 @@ namespace SendiT
 
                 return new OkObjectResult(new SendMailResponse(body.Value.TrackerId));
             }
+            catch (JsonReaderException jrEx)
+            {
+                log.LogError("Json request error: {0}", jrEx);
+                return new BadRequestObjectResult("Json format error.");
+            }
             catch (Exception ex)
             {
-                log.LogError("An error has occurred.", ex);
+                log.LogError("An error has occurred: {0}", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
@@ -86,7 +91,7 @@ namespace SendiT
             }
             catch (Exception ex)
             {
-                log.LogError("An error has occurred.", ex);
+                log.LogError("An error has occurred: {0}", ex);
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
@@ -107,16 +112,19 @@ namespace SendiT
 
             try
             {
+                var toEmail = emailQueue.ToAddress.Email;
+
                 //Check whether the recipient of the message is blocked
-                var recipientIsBlocked = await EmailBlocker.CheckIfBlocked(emailQueue.To, tbEmailBlocked);
+                //TODO: Change this method to check if the email is blocked calling a SendGrid Api
+                var recipientIsBlocked = await EmailBlocker.CheckIfBlocked(toEmail, tbEmailBlocked);
                 if (recipientIsBlocked)
                 {
-                    log.LogInformation($"Can't send email to {emailQueue.To} because it has been blocked");
-                    await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, Event.Blocked, log);
+                    log.LogInformation($"Can't send email to {toEmail} because it has been blocked");
+                    await EmailTracker.Update(tbEmailTrack, toEmail, emailQueue.TrackerId, Event.Blocked, log);
                     return;
                 }
 
-                var response = await SendMail.SendSingleEmail(emailQueue.From, emailQueue.To, emailQueue.Subject, emailQueue.Body,
+                var response = await SendMail.SendSingleEmail(emailQueue.FromAddress, emailQueue.ToAddress, emailQueue.Subject, emailQueue.Body,
                     emailQueue.TrackerId, log);
 
                 if (!_successStatusCodes.Contains(response.StatusCode))
@@ -124,12 +132,12 @@ namespace SendiT
                     throw new Exception($"Error sending mail. SendGrid response {response.StatusCode}");
                 }
                 //Track that email request was sent
-                await EmailTracker.Update(tbEmailTrack, emailQueue.To, emailQueue.TrackerId, Event.SendRequested, log,
+                await EmailTracker.Update(tbEmailTrack, toEmail, emailQueue.TrackerId, Event.SendRequested, log,
                     response.MessageId);
             }
             catch (Exception ex)
             {
-                log.LogError("An error has occurred.", ex);
+                log.LogError("An error has occurred: {0}", ex);
                 throw;
             }
         }
@@ -144,9 +152,6 @@ namespace SendiT
         {
             try
             {
-                //TODO: Need to work the TimeStemp property
-                //https://stackoverflow.com/questions/249760/how-can-i-convert-a-unix-timestamp-to-datetime-and-vice-versa/250400#250400
-
                 log.LogInformation($"New status to update. Dequeue count for this item: {dequeueCount}.");
                 var deliveryStatusList = JsonConvert.DeserializeObject<List<DeliveryWebHook>>(deliveryStatusQueue);
 
@@ -175,7 +180,7 @@ namespace SendiT
             }
             catch (Exception ex)
             {
-                log.LogError("An error has occurred.", ex);
+                log.LogError("An error has occurred: {0}", ex);
                 throw;
             }
         }

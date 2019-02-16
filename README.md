@@ -27,23 +27,37 @@ After installing the emulator, make sure you have a local.settings.json file on 
 
 I recommend that you get the [Storage Explorer](https://azure.microsoft.com/en-us/features/storage-explorer/) to be able to browse your local storage emulation.
 
-## Deploying to Azure
-
-* *Coming soon*
-
 ---
 
-## Features
+## API key authorization
+Most HTTP trigger templates require an API key in the request. So your HTTP request normally looks like the following URL:
+```
+https://<APP_NAME>.azurewebsites.net/api/<FUNCTION_NAME>?code=<API_KEY>
+```
+The key can be included in a query string variable named ```code```, as above. It can also be included in an ```x-functions-key``` HTTP header. The value of the key can be any function key defined for the function, or any host key.
+
+## SendiT APIs
 
 ### Send Email
 
-The send email function is responsible for get a request of an email data, store it into a queue to be sent through a Send Grid account.
+The send email function recieves a request of an email and store it into a queue to be sent through Send Grid.
+```
+/api/SendEmail
+```
 
 Request Json
 ```json
 {
-    "From": "no-reply@mydomain.com",
-    "To": "someone@email.com",
+    "FromAddress":
+    {
+      "Email": "no-reply@mycompany.com",
+      "Name": "My System Name"
+    },
+    "ToAddress":
+    {
+      "Email": "carlos@email.com",
+      "Name": "Carlos Coelho"
+    },
     "Subject": "Testing sendit",
     "Body": "This is just a test",
     "Origin": "TEST APP", //Caller's application name
@@ -56,3 +70,26 @@ Response Json
     "trackerId": "11111111-2222-3333-4444-555555555555"
 }
 ```
+
+### SendGrid Hook
+
+This API receives the status of each message that has been sent. Check the link for instructions on how to configure [SendGrid web hook events](https://sendgrid.com/docs/API_Reference/Event_Webhook/event.html). 
+```
+/api/SendGridHook
+```
+
+Request Json
+```json
+[
+  {
+    "email": "example@test.com",
+    "timestamp": 1542650370,
+    "smtp-id": "<14c5d00ce93.dfd.64b469@ismtpd-555>",
+    "event": "bounce",
+    "category": "cat facts",
+    "sg_event_id": "40HcwXtOcz43-tqJf0O7tQ==",
+    "sg_message_id": "14c5d75ce93.dfd.64b469.filter0001.16648.5515E0B88.0",
+    "reason": "500 unknown recipient",
+    "status": "5.0.0"
+  }
+]

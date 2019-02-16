@@ -17,7 +17,7 @@ namespace SendiT.Logic
             var content = JsonConvert.SerializeObject(emailMessage);
             await tbTracker.AddAsync(new SendEmailTrack
             {
-                PartitionKey = emailMessage.To,
+                PartitionKey = emailMessage.ToAddress.Email,
                 RowKey = emailMessage.TrackerId,
                 Event = dEvent.ToString(),
                 Content = content,

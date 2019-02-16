@@ -14,11 +14,11 @@ namespace SendiT.Logic
         private const string TXT_TRACKER_ID = "TrackerId";
 
         #region SendSingleEmail
-        public static async Task<SendResponse> SendSingleEmail(string from, string to, string subject, string htmlContent,
+        public static async Task<SendResponse> SendSingleEmail(Model.EmailAddress from, Model.EmailAddress to, string subject, string htmlContent,
             string trackerId, ILogger log)
         {
-            var fromAddress = new EmailAddress(from);
-            var toAddress = new EmailAddress(to);
+            var fromAddress = new EmailAddress(from.Email, from.Name);
+            var toAddress = new EmailAddress(to.Email, to.Name);
             return await SendSingleEmail(fromAddress, toAddress, subject, htmlContent, trackerId, log);
         }
 
@@ -29,6 +29,11 @@ namespace SendiT.Logic
             {
                 // Retrieve the API key from the environment variables.
                 var apiKey = Environment.GetEnvironmentVariable(SEND_GRID_API_KEY);
+
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    throw new ApplicationException($"Key { SEND_GRID_API_KEY } was not found.");
+                }
 
                 var client = new SendGridClient(apiKey);
 
@@ -49,7 +54,7 @@ namespace SendiT.Logic
             }
             catch (Exception ex)
             {
-                log.LogError("An error has occurred.", ex);
+                log.LogError("An error has occurred: {0}", ex);
                 throw;
             }
         }
