@@ -7,6 +7,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace SendiT.Util
 {
@@ -15,7 +16,7 @@ namespace SendiT.Util
         public bool IsValid { get; set; }
         public T Value { get; set; }
 
-        public IEnumerable<ValidationResult> ValidationResults { get; set; }
+        public List<ValidationResult> ValidationResults { get; set; }
     }
 
     public static class ModelValidationExtension
@@ -27,25 +28,43 @@ namespace SendiT.Util
             body.Value = Deserialize<T>(bodyString);
 
             var results = new List<ValidationResult>();
+            Validate(body, results);
+
+            return body;
+        }
+
+        private static void Validate<T>(HttpResponseBody<T> body, List<ValidationResult> results)
+        {
+            var isValid = false;
             body.IsValid = Validator.TryValidateObject(body.Value, new ValidationContext(body.Value, null, null), results, true);
             body.ValidationResults = results;
-            return body;
+
+            foreach (PropertyInfo propertyInfo in body.Value.GetType().GetProperties())
+            {
+                if (propertyInfo.PropertyType.Namespace == "SendiT.Model")
+                {
+                    //It means that there's another model to validade
+                    var prop = propertyInfo.GetValue(body.Value, null);
+                    if (prop != null)
+                    {
+                        results = new List<ValidationResult>();
+                        isValid = Validator.TryValidateObject(prop, new ValidationContext(prop, null, null), results, true);
+                        body.ValidationResults.AddRange(results);
+
+                        if (!isValid)
+                        {
+                            body.IsValid = isValid;
+                        }
+                    }
+                }
+            }
         }
 
         private static T Deserialize<T>(string bodyString)
         {
             var token = JToken.Parse(bodyString);
-
-            if (token is JArray)
-            {
-                var values = JsonConvert.DeserializeObject<List<T>>(bodyString);
-                return values[0];
-            }
-            else //token is JObject
-            {
-                return JsonConvert.DeserializeObject<T>(bodyString);
-            }
+            return JsonConvert.DeserializeObject<T>(bodyString);
         }
     }
-    
+
 }

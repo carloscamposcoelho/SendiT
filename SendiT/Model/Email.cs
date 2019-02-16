@@ -1,17 +1,16 @@
-﻿using System;
+﻿using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
+
 
 namespace SendiT.Model
 {
     public class OutgoingEmail
     {
         [Required(ErrorMessage = "Required field")]
-        [EmailAddress(ErrorMessage = "Invalid email address")]
-        public string To { get; set; }
+        public EmailAddress ToAddress { get; set; }
 
-        [EmailAddress(ErrorMessage = "Invalid email address")]
         [Required(ErrorMessage = "Required field")]
-        public string From { get; set; }
+        public EmailAddress FromAddress { get; set; }
 
         [StringLength(100)]
         public string Subject { get; set; }
@@ -45,5 +44,19 @@ namespace SendiT.Model
         /// Id for track the email sending status
         /// </summary>
         public string TrackerId { get; set; }
+    }
+
+    // <summary>
+    // An email object containing the email address and name of the sender or recipient.
+    // </summary>
+    public class EmailAddress
+    {
+        [Required(ErrorMessage = "Required field")]
+        [EmailAddress(ErrorMessage = "Invalid email address")]
+        [JsonProperty(PropertyName = "email")]
+        public string Email { get; set; }
+
+        [JsonProperty(PropertyName = "name")]
+        public string Name { get; set; }
     }
 }
