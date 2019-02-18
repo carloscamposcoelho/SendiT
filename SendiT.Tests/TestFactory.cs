@@ -1,13 +1,16 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Internal;
+using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
+using Moq;
 using Newtonsoft.Json;
 using SendGrid.Tests;
-using SendiT.Model;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SendiT.Tests
 {
@@ -42,31 +45,41 @@ namespace SendiT.Tests
             return request;
         }
 
-        public static DefaultHttpRequest CreateHttpRequest(OutgoingEmail email)
+        public static Mock<HttpRequest> CreateMockRequest(object body)
         {
-            var request = new DefaultHttpRequest(new DefaultHttpContext())
-            {
-                Body = Serialize(email)
-            };
-            return request;
+            var ms = new MemoryStream();
+            var sw = new StreamWriter(ms);
+
+            var json = JsonConvert.SerializeObject(body);
+
+            sw.Write(json);
+            sw.Flush();
+
+            ms.Position = 0;
+
+            var mockRequest = new Mock<HttpRequest>();
+            mockRequest.Setup(x => x.Body).Returns(ms);
+
+            return mockRequest;
         }
-        private static Stream Serialize(object value)
+
+        public class AsyncCollector<T> : IAsyncCollector<T>
         {
-            var s = new MemoryStream();
-            using (StreamWriter writer = new StreamWriter(s))
-            using (JsonTextWriter jsonWriter = new JsonTextWriter(writer))
+            public readonly List<T> Items = new List<T>();
+
+            public Task AddAsync(T item, CancellationToken cancellationToken = default(CancellationToken))
             {
-                JsonSerializer ser = new JsonSerializer();
-                ser.Serialize(jsonWriter, value);
-                jsonWriter.Flush();
+
+                Items.Add(item);
+
+                return Task.FromResult(true);
             }
 
-            return s;
+            public Task FlushAsync(CancellationToken cancellationToken = default(CancellationToken))
+            {
+                return Task.FromResult(true);
+            }
         }
-
-
-
-
 
         public static ILogger CreateLogger(LoggerTypes type = LoggerTypes.Null)
         {

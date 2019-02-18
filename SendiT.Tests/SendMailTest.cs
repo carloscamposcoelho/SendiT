@@ -1,34 +1,34 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
-using Moq;
 using SendiT.Model;
 using Xunit;
+using static SendiT.Tests.TestFactory;
+
 namespace SendiT.Tests
 {
     public class SendMailTest
     {
-        private readonly ILogger logger = TestFactory.CreateLogger();
+        private readonly ILogger logger = CreateLogger();
 
         [Fact]
         public async void SendEmail()
         {
-            var email = new Model.OutgoingEmail
+            var email = new OutgoingEmail
             {
-                FromAddress = new Model.EmailAddress { Email = "sendit@email.com", Name = "SendiT Program" },
-                ToAddress = new Model.EmailAddress { Email = "no-one@email.com", Name = "Arya Stark" },
+                FromAddress = new EmailAddress { Email = "sendit@email.com", Name = "SendiT Program" },
+                ToAddress = new EmailAddress { Email = "no-one@email.com", Name = "Arya Stark" },
                 Origin = "SenditTest",
                 Body = "This is a test body.",
                 Subject = "Test of email send",
                 Type = "Test"
             };
 
-            // Mock DurableOrchestrationClientBase
-            //var queueMock = new IAsyncCollector<OutgoingEmail>();
+            var queue = new AsyncCollector<OutgoingEmail>();
+            var tbTrack = new AsyncCollector<SendEmailTrack>();
 
-            var response = (StatusCodeResult) await Email.SendEmail(TestFactory.CreateHttpRequest(email), null, null, logger);
+            var response = (OkObjectResult) await Email.SendEmail(CreateMockRequest(email).Object, queue, tbTrack, logger);
 
-            //Assert.Equal("Hello, Bill", response.Value);
+            Assert.Equal(200, response.StatusCode);
         }
 
 
