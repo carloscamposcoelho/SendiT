@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using SendiT.Model;
+using System.Net;
 using Xunit;
 using static SendiT.Tests.TestFactory;
 
@@ -26,9 +27,10 @@ namespace SendiT.Tests
             var queue = new AsyncCollector<OutgoingEmail>();
             var tbTrack = new AsyncCollector<SendEmailTrack>();
 
-            var response = (OkObjectResult) await Email.SendEmail(CreateMockRequest(email).Object, queue, tbTrack, logger);
+            var response = (ObjectResult) await Email.SendEmail(CreateMockRequest(email).Object, queue, tbTrack, logger);
 
             Assert.Equal(200, response.StatusCode);
+            Assert.NotNull(((SendMailResponse)response.Value).TrackerId);
         }
 
 
