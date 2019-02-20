@@ -36,13 +36,12 @@ namespace SendiT.Tests
             return qs;
         }
 
-        public static DefaultHttpRequest CreateHttpRequest(string queryStringKey, string queryStringValue)
+         public static Mock<HttpRequest> CreateMockRequest(string queryStringKey, string queryStringValue)
         {
-            var request = new DefaultHttpRequest(new DefaultHttpContext())
-            {
-                Query = new QueryCollection(CreateDictionary(queryStringKey, queryStringValue)),
-            };
-            return request;
+            var mockRequest = new Mock<HttpRequest>();
+            mockRequest.Setup(x => x.Query).Returns(new QueryCollection(CreateDictionary(queryStringKey, queryStringValue)));
+
+            return mockRequest;
         }
 
         public static Mock<HttpRequest> CreateMockRequest(object body)
@@ -80,7 +79,6 @@ namespace SendiT.Tests
                 return Task.FromResult(true);
             }
         }
-
         public static ILogger CreateLogger(LoggerTypes type = LoggerTypes.Null)
         {
             ILogger logger;
