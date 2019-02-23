@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using SendiT.Function;
 using SendiT.Model;
 using System.Collections.Generic;
-using System.Net;
 using Xunit;
+
 using static SendiT.Tests.TestFactory;
 
 namespace SendiT.Tests
@@ -31,28 +32,10 @@ namespace SendiT.Tests
             {
                 return new[]
                 {
-                    new object[] { EmailAllFields },
-                    new object[] { EmailRequiredFieldsOnly }
+                    new object[] { DataTest.EmailAllFields },
+                    new object[] { DataTest.EmailRequiredFieldsOnly }
                 };
             }
         }
-
-        private static OutgoingEmail EmailAllFields => Sample;
-        private static OutgoingEmail EmailRequiredFieldsOnly =>
-            new OutgoingEmail
-            {
-                FromAddress = new EmailAddress { Email = Sample.FromAddress.Email },
-                ToAddress = new EmailAddress { Email = Sample.ToAddress.Email }
-            };
-        private static OutgoingEmail Sample =>
-            new OutgoingEmail
-            {
-                FromAddress = new EmailAddress { Email = "sendit@email.com", Name = "SendiT Program" },
-                ToAddress = new EmailAddress { Email = "no-one@email.com", Name = "Arya Stark" },
-                Origin = "SenditTest",
-                Body = "This is a test body.",
-                Subject = "Test of email send",
-                Type = "Test"
-            };
     }
 }

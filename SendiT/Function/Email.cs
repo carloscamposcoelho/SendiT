@@ -7,30 +7,16 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using SendiT.Logic;
 using SendiT.Model;
-using SendiT.Model.SendGrid;
 using SendiT.Util;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 using static SendiT.Model.Enumerators;
 
-namespace SendiT
+namespace SendiT.Function
 {
     public static class Email
     {
-        private const string EMAIL_QUEUE = "EmailQueue";
-        private const string EMAIL_TRACK = "EmailTrack";
-        private const string DELIVERY_STATUS_QUEUE = "DeliveryStatusQueue";
-        private const string EMAIL_BLOCKED = "EmailBlocked";
-        private static readonly IEnumerable<HttpStatusCode> _successStatusCodes = new List<HttpStatusCode>
-        {
-            HttpStatusCode.Accepted,
-            HttpStatusCode.OK
-        };
-
         #region Http Triggers
 
         [FunctionName("SendEmail")]
@@ -73,29 +59,6 @@ namespace SendiT
                 return new StatusCodeResult(StatusCodes.Status500InternalServerError);
             }
         }
-
-        [FunctionName("SendGridHook")]
-        public static async Task<IActionResult> SendGridHook(
-         [HttpTrigger(AuthorizationLevel.Function, "post", Route = null)] HttpRequest req,
-         [Queue(DELIVERY_STATUS_QUEUE)]  IAsyncCollector<string> deliveryStatusQueue,
-         ILogger log)
-        {
-            try
-            {
-                log.LogInformation("New web hook received from SendGrid");
-                string requestBody = new StreamReader(req.Body).ReadToEnd();
-
-                await deliveryStatusQueue.AddAsync(requestBody);
-
-                return new OkResult();
-            }
-            catch (Exception ex)
-            {
-                log.LogError("An error has occurred: {0}", ex);
-                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-            }
-        }
-
         #endregion
 
         #region Queue Triggers
@@ -127,13 +90,12 @@ namespace SendiT
                 var response = await SendMail.SendSingleEmail(emailQueue.FromAddress, emailQueue.ToAddress, emailQueue.Subject, emailQueue.Body,
                     emailQueue.TrackerId, log);
 
-                if (!_successStatusCodes.Contains(response.StatusCode))
+                if (!SuccessStatusCodes.Contains(response.StatusCode))
                 {
                     throw new Exception($"Error sending mail. SendGrid response {response.StatusCode}");
                 }
                 //Track that email request was sent
-                await EmailTracker.Update(tbEmailTrack, toEmail, emailQueue.TrackerId, Event.SendRequested, log,
-                    response.MessageId);
+                await EmailTracker.Update(tbEmailTrack, toEmail, emailQueue.TrackerId, Event.SendRequested, log, response.MessageId);
             }
             catch (Exception ex)
             {
@@ -141,50 +103,6 @@ namespace SendiT
                 throw;
             }
         }
-
-        [FunctionName("ProcessDeliveryStatusQueue")]
-        public static async Task ProcessDeliveryStatusQueue(
-            [QueueTrigger(DELIVERY_STATUS_QUEUE)] string deliveryStatusQueue,
-            [Table(EMAIL_BLOCKED)] IAsyncCollector<EmailBlocked> tbEmailBlocked,
-            [Table(EMAIL_TRACK)] CloudTable tbEmailTrack,
-            int dequeueCount,
-            ILogger log)
-        {
-            try
-            {
-                log.LogInformation($"New status to update. Dequeue count for this item: {dequeueCount}.");
-                var deliveryStatusList = JsonConvert.DeserializeObject<List<DeliveryWebHook>>(deliveryStatusQueue);
-
-                foreach (var status in deliveryStatusList)
-                {
-                    if (DeliveryEvents.Contains(status.Event))
-                    {
-                        if (BlockerEvents.Contains(status.Event))
-                        {
-                            log.LogInformation($"Blocking email {status.Email}...");
-                            await EmailBlocker.Create(tbEmailBlocked, status.Email, JsonConvert.SerializeObject(status), status.Event);
-                        }
-                        //TODO: Add to a list of Delivery Events
-                        await EmailTracker.Update(tbEmailTrack, status.Email, status.TrackerId, status.Event, log, status.SgMessageId);
-                    }
-                    else if (EngagementEvents.Contains(status.Event))
-                    {
-                        //TODO: Add to a list of Engagement Events
-                        await EmailTracker.Update(tbEmailTrack, status.Email, status.TrackerId, status.Event, log, status.SgMessageId);
-                    }
-                    else
-                    {
-                        throw new Exception($"Event not mapped {status.Event}.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                log.LogError("An error has occurred: {0}", ex);
-                throw;
-            }
-        }
-
         #endregion
     }
 }
