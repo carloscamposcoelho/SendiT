@@ -12,11 +12,13 @@ namespace SendiT.Logic
     {
         private const string SEND_GRID_API_KEY = "AzureWebJobsSendGridApiKey";
         private const string TXT_TRACKER_ID = "TrackerId";
+        private const string SEND_GRID_MESSAGE_ID = "X-Message-Id";
 
         #region SendSingleEmail
         public static async Task<SendResponse> SendSingleEmail(Model.EmailAddress from, Model.EmailAddress to, string subject, string htmlContent,
             string trackerId, ILogger log)
         {
+            //Converting to SendGrid Email Address type
             var fromAddress = new EmailAddress(from.Email, from.Name);
             var toAddress = new EmailAddress(to.Email, to.Name);
             return await SendSingleEmail(fromAddress, toAddress, subject, htmlContent, trackerId, log);
@@ -48,7 +50,7 @@ namespace SendiT.Logic
 
                 return new SendResponse
                 {
-                    MessageId = response.Headers.GetValues("X-Message-Id").FirstOrDefault(),
+                    MessageId = response.Headers.GetValues(SEND_GRID_MESSAGE_ID).FirstOrDefault(),
                     StatusCode = response.StatusCode
                 };
             }

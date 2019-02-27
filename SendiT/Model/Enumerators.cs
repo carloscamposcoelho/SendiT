@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.ComponentModel;
+using System.Net;
 using System.Runtime.Serialization;
 
 namespace SendiT.Model
@@ -86,5 +87,16 @@ namespace SendiT.Model
             Event.Deferred,
             Event.Bounce
         };
+
+        public static readonly IEnumerable<HttpStatusCode> SuccessStatusCodes = new List<HttpStatusCode>
+        {
+            HttpStatusCode.Accepted,
+            HttpStatusCode.OK
+        };
+
+        public const string EMAIL_QUEUE = "EmailQueue";
+        public const string EMAIL_TRACK = "EmailTrack";
+        public const string DELIVERY_STATUS_QUEUE = "DeliveryStatusQueue";
+        public const string EMAIL_BLOCKED = "EmailBlocked";
     }
 }
